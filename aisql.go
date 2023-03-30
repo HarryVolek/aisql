@@ -22,11 +22,9 @@ const tableDump = `select table_name, column_name, data_type
 from INFORMATION_SCHEMA.COLUMNS
 where table_schema != 'information_schema' and table_schema != 'pg_catalog';`
 
-const model = "text-davinci-003"
-const temperature = 0.5
-const maxTokens = 250
+const model = "gpt-3.5-turbo"
 
-const openaiCompletionUrl = "https://api.openai.com/v1/completions"
+const openaiCompletionUrl = "https://api.openai.com/v1/chat/completions"
 
 var httpClient = http.Client{}
 var authKey string
@@ -41,18 +39,21 @@ type TableSchema []SchemaField
 type DatabaseSchema map[string]TableSchema
 
 type OpenAIRequestBody struct {
-	Model       string  `json:"model"`
-	Prompt      string  `json:"prompt"`
-	Temperature float32 `json:"temperature"`
-	MaxTokens   int     `json:"max_tokens"`
+	Model    string    `json:"model"`
+	Messages []Message `json:"messages"`
+}
+
+type Message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
 
 type OpenAIResponseBody struct {
-	Choices []Choice
+	Choices []Choice `json:"choices"`
 }
 
 type Choice struct {
-	Text string `json:"text"`
+	Message Message `json:"message"`
 }
 
 func main() {
@@ -157,10 +158,11 @@ func generatePrompt(schema DatabaseSchema, question string) string {
 
 func getCompletion(prompt string) (string, error) {
 	body, err := json.Marshal(OpenAIRequestBody{
-		Model:       model,
-		Prompt:      prompt,
-		Temperature: temperature,
-		MaxTokens:   maxTokens,
+		Model: model,
+		Messages: []Message{{
+			Role:    "user",
+			Content: prompt,
+		}},
 	})
 	if err != nil {
 		return "", err
@@ -191,5 +193,5 @@ func getCompletion(prompt string) (string, error) {
 	if len(responseBody.Choices) == 0 {
 		return "", errors.New("no response returned")
 	}
-	return responseBody.Choices[0].Text, nil
+	return responseBody.Choices[0].Message.Content, nil
 }
